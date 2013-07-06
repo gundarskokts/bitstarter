@@ -6,8 +6,10 @@ var buffer = new Buffer(256);
 
 app.get('/', function(request, response) {
   buffer = fs.readFileSync('./index.html');
+  var k = buffer.toString(); 
+
   response.send('Start');
-  response.send(buffer.toString());
+  response.send(k);
   response.send('End');
 });
 
