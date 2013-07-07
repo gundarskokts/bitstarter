@@ -24,8 +24,10 @@ References:
 var fs = require('fs');
 var program = require('commander');
 var cheerio = require('cheerio');
+var rest = require('restler'); 
 var HTMLFILE_DEFAULT = "index.html";
 var CHECKSFILE_DEFAULT = "checks.json";
+var URL_DEFAULT = ""; // point to a simple URL here 
 
 var assertFileExists = function(infile) {
     var instr = infile.toString();
@@ -36,8 +38,46 @@ var assertFileExists = function(infile) {
     return instr;
 };
 
+var assertUrlExists = function(url) { 
+    // console.log("In assert URL exists.."); 
+    rest.get(url).on('complete', function(result) { 
+	if (result instanceof Error) { 
+          console.log("%s does not exist. Exiting with. ", url); 
+          process.exit(1); // http://nodejs.org/api/process.html#process_process_exit_code    
+	} else { 
+          console.log("% fetched! ", url); 
+          console.log(result.toString()); 
+          return(result.toString());   
+	}
+
+    }
+);
+}; 
+
+// Add assertUrlExists here 
+
 var cheerioHtmlFile = function(htmlfile) {
+    //console.log("In cheerio html file.."); 
     return cheerio.load(fs.readFileSync(htmlfile));
+};
+
+var cheerioHtmlUrl = function(htmlurlfile) {
+    //console.log("In cheerio URL file..with %s", htmlurlfile); 
+    var filefinal = rest.get(htmlurlfile).on('complete', function(result) { 
+	if (result instanceof Error) { 
+          console.log("%s does not exist. Exiting with. ", htmlurlfile); 
+          process.exit(1); // http://nodejs.org/api/process.html#process_process_exit_code    
+	} else { 
+          //console.log("% fetched! ", htmlurlfile); 
+          //console.log(result.toString()); 
+          var filestring = result.toString();   
+          return filestring;
+	}
+
+    }
+);
+  // console.log("About to return filefinal..which is %s", filefinal); 
+  return(cheerio.load(filefinal)); 
 };
 
 var loadChecks = function(checksfile) {
@@ -45,9 +85,26 @@ var loadChecks = function(checksfile) {
 };
 
 var checkHtmlFile = function(htmlfile, checksfile) {
+    //console.log("In check html file.."); 
     $ = cheerioHtmlFile(htmlfile);
     var checks = loadChecks(checksfile).sort();
     var out = {};
+    //console.log("Checks are %s:", checks); 
+    //console.log ("Dollar is %s:", $); 
+    for(var ii in checks) {
+        var present = $(checks[ii]).length > 0;
+        out[checks[ii]] = present;
+    }
+    return out;
+};
+
+var checkHtmlUrl = function(htmlfile, checksfile) {
+    //console.log("In check html URL..with %s", htmlfile); 
+    $ = cheerioHtmlUrl(htmlfile);
+    var checks = loadChecks(checksfile).sort();
+    var out = {};
+    //console.log("Checks are %s:", checks); 
+    //console.log ("Dollar is %s:", $); 
     for(var ii in checks) {
         var present = $(checks[ii]).length > 0;
         out[checks[ii]] = present;
@@ -64,9 +121,21 @@ var clone = function(fn) {
 if(require.main == module) {
     program
         .option('-c, --checks <check_file>', 'Path to checks.json', clone(assertFileExists), CHECKSFILE_DEFAULT)
-        .option('-f, --file <html_file>', 'Path to index.html', clone(assertFileExists), HTMLFILE_DEFAULT)
+        .option('-f, --file <html_file>', 'Path to index.html', clone(assertFileExists))
+        .option('-u, --url <url_link>', 'Path to URL')
         .parse(process.argv);
-    var checkJson = checkHtmlFile(program.file, program.checks);
+
+    // conditional logic for file vs URL to be added 
+
+    if (program.url) { 
+        //console.log("In main, about to call checkJson for url with %s..", program.url); 
+        var checkJson = checkHtmlUrl(program.url, program.checks);
+    } else if (program.file) { 
+        //console.log("In main, about to call checkJson for file with %s..", program.file); 
+        var checkJson = checkHtmlFile(program.file, program.checks);
+    } 
+
+
     var outJson = JSON.stringify(checkJson, null, 4);
     console.log(outJson);
 } else {
